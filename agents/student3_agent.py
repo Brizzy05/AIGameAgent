@@ -45,7 +45,7 @@ class Student3Agent(Agent):
         print("\n")
         board_size = len(chess_board)
 
-        move = self.alpha_beta(True, my_pos, adv_pos, chess_board, board_size, 3, -100000, 100000)
+        move = self.alpha_beta(True, my_pos, adv_pos, chess_board, board_size, 3, -100000, 100000, 0)
 
         r, x, d = move["move"]
 
@@ -60,39 +60,40 @@ class Student3Agent(Agent):
             for j in range(board_size):
                 new_pos = i, j
                 x, y = new_pos
-                if x + y <= max_step:
-                    for k in range(4):
-                        if (self.check_valid_step(np.array([r, c]), np.array([x, y]), k, max_step, chess_board,
-                                                  np.array([r2, c2]))):
-                            move_list.append((x, y, k))
+                #if x + y <= max_step:
+                for k in range(4):
+                    if (self.check_valid_step(np.array([r, c]), np.array([x, y]), k, max_step, chess_board,
+                                              np.array([r2, c2]))):
+                        move_list.append((x, y, k))
 
         return move_list
 
-    def alpha_beta(self, isMaximizing, my_pos, adv_pos, chess_board, board_size, depth, alpha, beta):
+    def alpha_beta(self, isMaximizing, my_pos, adv_pos, chess_board, board_size, depth, alpha, beta, direction):
         max_step = (board_size + 1) // 2
         move_list = self.valid_move(chess_board, my_pos, max_step, board_size, adv_pos)
 
         row, col = my_pos
         row2, col2 = adv_pos
 
-        # distance between the two points
-        dis = np.sqrt(pow((row - row2), 2) + pow((col - col2), 2))
+        #print(len(move_list))
+        #print("History", "My_pos", my_pos, "direction", direction, "Opponent", adv_pos, "Turn", isMaximizing, alpha, beta)
+        # distance between two points
+        dis = 3 / ((np.sqrt(pow((row - row2), 2) + pow((col - col2), 2))))
 
-        if dis > max_step:
-            # check which side are we on
-            if col < board_size // 2:
+        if dis >= max_step:
+            if col > board_size // 2:
                 move_list.reverse()
 
         if depth == 0:
             move_listb = self.valid_move(chess_board, adv_pos, max_step, board_size, my_pos)
-            count = self.count_path(chess_board, move_list, move_listb, my_pos, adv_pos)
+            count = self.heuristic(chess_board, move_list, move_listb, my_pos, adv_pos, direction, isMaximizing)
             return {"move": None, "score": count}
 
         # check if endgame
         end_game, p0_score, p1_score = self.check_endgame(board_size, chess_board, my_pos, adv_pos)
 
         if end_game:
-            return {"move": None, "score": p0_score - p1_score if isMaximizing else p1_score - p0_score}
+            return {"move": None, "score": (p0_score - p1_score) * 30 if isMaximizing else (p1_score - p0_score) * 30}
 
         # if we are the maximizing player
         if isMaximizing:
@@ -100,16 +101,17 @@ class Student3Agent(Agent):
         else:
             best = {"move": None, "score": 100000}
 
+
         for mv in move_list:
             r, c, d = mv
             new_pos = (r, c)
             self.set_barrier(r, c, d, chess_board)
             if isMaximizing:
                 sim_score = self.alpha_beta(False, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
-                                            board_size=board_size, depth=depth - 1, alpha=alpha, beta=beta)
+                                            board_size=board_size, depth=depth - 1, alpha=alpha, beta=beta, direction=d)
             else:
                 sim_score = self.alpha_beta(True, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
-                                            board_size=board_size, depth=depth - 1, alpha=alpha, beta=beta)
+                                            board_size=board_size, depth=depth - 1, alpha=alpha, beta=beta, direction=d)
 
             # undo
             self.undo_barrier(r, c, d, chess_board)
@@ -117,42 +119,138 @@ class Student3Agent(Agent):
             # possible optimal move
 
             sim_score["move"] = mv
-            # print("after", sim_score)
+            #print("after", sim_score, alpha, beta, isMaximizing)
 
             if isMaximizing:
                 if sim_score["score"] > best["score"]:
                     best = sim_score
-                    alpha = max(alpha, best["score"])
+                    alpha = max(alpha, sim_score["score"])
 
             else:
                 if sim_score["score"] < best["score"]:
                     best = sim_score
-                    beta = min(beta, best["score"])
+                    beta = min(beta, sim_score["score"])
 
             # Alpha Beta Pruning
             if beta <= alpha:
                 break
 
+        #print("End Alpha beta", best, alpha, beta, isMaximizing)
         return best
 
     @staticmethod
-    def count_path(chess_board, move_lista, move_listb, my_pos, adv_pos):
+    def heuristic(chess_board, move_lista, move_listb, my_pos, adv_pos, direction, isMax):
+        # estimates how good a move is
+        # move should decrease number of cells opponent can reach while
+        # limiting effects on
+
         # calculate the number of walls reachable by both players
+
+        # add more value on direction score if horz or vert wall is needed more
 
         max_count = 0
         min_count = 0
-        r1, c1 = my_pos
-        r2, c2 = adv_pos
 
-        for r, c, d in move_lista:
-            if chess_board[r, c, d]:
-                max_count += 1
+        if isMax:
+            r1, c1 = my_pos
+            r2, c2 = adv_pos
+        else:
+            r1, c1 = adv_pos
+            r2, c2 = my_pos
 
-        for r, c, d in move_listb:
-            if chess_board[r, c, d]:
-                min_count += 1
+        # calculate the direction
+        horz = c2 - c1
+        vert = r1 - r2
 
-        count = max_count - min_count
+        dirScore = 0
+
+        if horz > 0:
+            if direction == 3:
+                dirScore -= 2
+            elif direction == 1:
+                dirScore += 1
+        else:
+            if direction == 3:
+                dirScore += 1
+            elif direction == 1:
+                dirScore -= 2
+
+        if vert > 0:
+            if direction == 2:
+                dirScore -= 2
+            elif direction == 1:
+                dirScore += 1
+
+        else:
+            if direction == 2:
+                dirScore += 1
+            elif direction == 0:
+                dirScore -= 2
+
+        dis = 5 / (np.sqrt(pow((r1 - r2), 2) + pow((c1 - c2), 2)))
+
+        # check how many walls surround enemy
+        if isMax:
+            for r, c, d in move_listb:
+                if chess_board[r, c, d]:
+                    max_count += 1
+        else:
+            for r, c, d in move_lista:
+                if chess_board[r, c, d]:
+                    max_count += 1
+
+        # count number of walls around adv and mypos
+        # checks if we are in a corner
+        for i in range(4):
+            if chess_board[r1, c1, i]:
+                min_count -= 12 * dis
+                #check if in corner
+                if r1 % len(chess_board - 1) == 0 and c1 % len(chess_board - 1) == 0:
+                    min_count -= 15 * dis
+                elif r1 % len(chess_board - 1 == 0):
+                    min_count -= 5 * dis
+                elif c1 % len(chess_board - 1 == 0):
+                    min_count -= 5
+            if chess_board[r2, c2, i]:
+                min_count += 5
+
+        # counts number of cell reached omitting direction
+        lengthb = 1
+        if len(move_listb) > 0:
+            seen = move_listb[0]
+            for i in move_listb:
+                x1, y1, d1, = seen
+                x2, y2, d2 = i
+                if x1 == x2 and y1 == y2:
+                    lengthb += 1
+                    seen = i
+
+        lengtha = 1
+        if len(move_lista) > 0:
+            seen = move_lista[0]
+            for i in move_lista:
+                x1, y1, d1, = seen
+                x2, y2, d2 = i
+                if x1 == x2 and y1 == y2:
+                    lengtha += 1
+                    seen = i
+
+        length = 0
+
+        if isMax:
+            if lengthb > lengtha:
+                length += (10 / lengthb) - 5
+            else:
+                length += (10 / lengthb) + 5
+        else:
+            if lengthb > lengtha:
+                length += (10 / lengthb) - 5
+            else:
+                length += (10 / lengthb) + 5
+
+        count = min_count + dis + dirScore + length
+
+        #print("heuristic", count)
 
         return count
 
@@ -204,16 +302,6 @@ class Student3Agent(Agent):
         p1_score = list(father.values()).count(p1_r)
         if p0_r == p1_r:
             return False, p0_score, p1_score
-        player_win = None
-        win_blocks = -1
-        if p0_score > p1_score:
-            player_win = 0
-            win_blocks = p0_score
-        elif p0_score < p1_score:
-            player_win = 1
-            win_blocks = p1_score
-        else:
-            player_win = -1  # Tie
 
         return True, p0_score, p1_score
 
