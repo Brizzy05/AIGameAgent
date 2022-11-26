@@ -1,27 +1,22 @@
-# Reinforcement Learning Agent
-
-# System
+# Student agent: Add your own agent here
+# alpha beta depth limit and heuristic
 import sys
-
-# Deepcopy
 from copy import deepcopy
-
-# Numpy
 import numpy as np
-
-# Agent
 from agents.agent import Agent
-
-# Store
 from store import register_agent
 
-@register_agent("rl_agent")
-class Rl_Agent(Agent):
 
-    # Initialization of agent
+@register_agent("alphabeta_agent")
+class AlphaBetaAgent(Agent):
+    """
+    A dummy class for your implementation. Feel free to use this class to
+    add any helper functionalities needed for your agent.
+    """
+
     def __init__(self):
-        super(Rl_Agent, self).__init__()
-        self.name = "rl_agent"
+        super(AlphaBetaAgent, self).__init__()
+        self.name = "AlphaBetaAgent"
 
         # Moves (Up, Right, Down, Left)
         self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
@@ -29,84 +24,7 @@ class Rl_Agent(Agent):
         # Opposite Directions
         self.opposites = {0: 2, 1: 3, 2: 0, 3: 1}
 
-        # Gamma value from the command line
-        self.gamma = args.gamma
-        
-        # Learning rate from the command line
-        self.lr = args.lr
-        
-        # state-action values
-        self.Q_value = np.zeros((args.theta_discrete_steps,args.theta_dot_discrete_steps,3))
-        
-        # state values
-        self.V_values = np.zeros((args.theta_discrete_steps,args.theta_dot_discrete_steps))
-        
-        # previous action
-        self.prev_a = 0
-        
-        # Use a previous_state = None to detect the beginning of the new round e.g. if not(self.prev_s is None): ...
-        self.prev_s = None
-
-        # random counter
-        self.randomCounter = 0
-    
-    # Function 2
-    def reset(self):
-        
-        # Reset the previous state and action
-        self.prev_s = None
-        self.prev_a = 0
-
-        # Update the V values
-        self.V_values = self.Q_value.max(axis=2)
-
-        # Save text function
-        np.savetxt("File",self.V_values,fmt="%.4f",delimiter=",")
-
-
-    # Function 3: 
-    def get_action(self,randomness,state,image_state,random_controller=False,episode=0):
-
-        # variables from the state
-        terminal, timestep, theta, theta_dot, reward = state
-
-        # if the random controller is selected
-        if random_controller:
-            
-            # 3 possible actions (0,1,2)
-            action = np.random.randint(0,3)
-        
-        # if the reinforcement learning controller is used
-        else:
-            
-            # use Q values to take the best action at each state
-            action = self.Q_value[theta][theta_dot].argmax()
-
-            # Only allow random actions at the beginning of the program
-            if timestep < 90 and episode < 90 and np.random.rand()>randomness:
-                
-                # Compute a random action
-                action = np.random.randint(0,3)
-
-        # if there is a previous state or if the previous state is theta, angular velocity
-        if not(self.prev_s is None or self.prev_s == [theta, theta_dot]):
-            
-            # Update the Q value
-            self.Q_value[self.prev_s[0],self.prev_s[1],self.prev_a] = self.Q_value[self.prev_s[0],self.prev_s[1],self.prev_a] + \
-            self.lr * ((reward+self.gamma*self.Q_value[theta,theta_dot,action]) - self.Q_value[self.prev_s[0],self.prev_s[1],self.prev_a])       
-        
-        # update the value of the previous state with the current theta and angular velocity
-        self.prev_s = [theta,theta_dot]
-        
-        # update the previous action with the current action
-        self.prev_a = action
-
-        # return the action
-        return action
-
-    # Step function
     def step(self, chess_board, my_pos, adv_pos, max_step):
-
         """
         Implement the step function of your agent here.
         You can use the following variables to access the chess board:
@@ -127,7 +45,7 @@ class Rl_Agent(Agent):
         print("\n")
         board_size = len(chess_board)
 
-        move = self.reinforcementLearning(True, my_pos, adv_pos, chess_board, board_size, 3, -100000, 100000)
+        move = self.alpha_beta(True, my_pos, adv_pos, chess_board, board_size, 3, -100000, 100000)
 
         r, x, d = move["move"]
 
@@ -150,7 +68,7 @@ class Rl_Agent(Agent):
 
         return move_list
 
-    def reinforcementLearning(self, isMaximizing, my_pos, adv_pos, chess_board, board_size, depth, alpha, beta):
+    def alpha_beta(self, isMaximizing, my_pos, adv_pos, chess_board, board_size, depth, alpha, beta):
         max_step = (board_size + 1) // 2
         move_list = self.valid_move(chess_board, my_pos, max_step, board_size, adv_pos)
 
@@ -187,10 +105,10 @@ class Rl_Agent(Agent):
             new_pos = (r, c)
             self.set_barrier(r, c, d, chess_board)
             if isMaximizing:
-                sim_score = self.reinforcementLearning(False, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
+                sim_score = self.alpha_beta(False, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
                                             board_size=board_size, depth=depth - 1, alpha=alpha, beta=beta)
             else:
-                sim_score = self.reinforcementLearning(True, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
+                sim_score = self.alpha_beta(True, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
                                             board_size=board_size, depth=depth - 1, alpha=alpha, beta=beta)
 
             # undo

@@ -1,5 +1,5 @@
 # Student agent: Add your own agent here
-# alpha beta depth limit and heuristic
+# Minimax depth limit and heuristic
 import sys
 from copy import deepcopy
 import numpy as np
@@ -7,16 +7,16 @@ from agents.agent import Agent
 from store import register_agent
 
 
-@register_agent("student3_agent")
-class Student3Agent(Agent):
+@register_agent("mcts_agent")
+class MCTSAgent(Agent):
     """
     A dummy class for your implementation. Feel free to use this class to
     add any helper functionalities needed for your agent.
     """
 
     def __init__(self):
-        super(Student3Agent, self).__init__()
-        self.name = "StudentAgent3"
+        super(MCTSAgent, self).__init__()
+        self.name = "MCTSAgent"
 
         # Moves (Up, Right, Down, Left)
         self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
@@ -45,7 +45,7 @@ class Student3Agent(Agent):
         print("\n")
         board_size = len(chess_board)
 
-        move = self.alpha_beta(True, my_pos, adv_pos, chess_board, board_size, 3, -100000, 100000)
+        move = self.minimax(True, my_pos, adv_pos, chess_board, board_size, 4)
 
         r, x, d = move["move"]
 
@@ -60,28 +60,16 @@ class Student3Agent(Agent):
             for j in range(board_size):
                 new_pos = i, j
                 x, y = new_pos
-                if x + y <= max_step:
-                    for k in range(4):
-                        if (self.check_valid_step(np.array([r, c]), np.array([x, y]), k, max_step, chess_board,
-                                                  np.array([r2, c2]))):
-                            move_list.append((x, y, k))
+                for k in range(4):
+                    if (self.check_valid_step(np.array([r, c]), np.array([x, y]), k, max_step, chess_board,
+                                              np.array([r2, c2]))):
+                        move_list.append((x, y, k))
 
         return move_list
 
-    def alpha_beta(self, isMaximizing, my_pos, adv_pos, chess_board, board_size, depth, alpha, beta):
+    def minimax(self, isMaximizing, my_pos, adv_pos, chess_board, board_size, depth):
         max_step = (board_size + 1) // 2
         move_list = self.valid_move(chess_board, my_pos, max_step, board_size, adv_pos)
-
-        row, col = my_pos
-        row2, col2 = adv_pos
-
-        # distance between the two points
-        dis = np.sqrt(pow((row - row2), 2) + pow((col - col2), 2))
-
-        if dis > max_step:
-            # check which side are we on
-            if col < board_size // 2:
-                move_list.reverse()
 
         if depth == 0:
             move_listb = self.valid_move(chess_board, adv_pos, max_step, board_size, my_pos)
@@ -105,11 +93,11 @@ class Student3Agent(Agent):
             new_pos = (r, c)
             self.set_barrier(r, c, d, chess_board)
             if isMaximizing:
-                sim_score = self.alpha_beta(False, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
-                                            board_size=board_size, depth=depth - 1, alpha=alpha, beta=beta)
+                sim_score = self.minimax(False, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
+                                         board_size=board_size, depth=depth - 1)
             else:
-                sim_score = self.alpha_beta(True, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
-                                            board_size=board_size, depth=depth - 1, alpha=alpha, beta=beta)
+                sim_score = self.minimax(True, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
+                                         board_size=board_size, depth=depth - 1)
 
             # undo
             self.undo_barrier(r, c, d, chess_board)
@@ -122,16 +110,9 @@ class Student3Agent(Agent):
             if isMaximizing:
                 if sim_score["score"] > best["score"]:
                     best = sim_score
-                    alpha = max(alpha, best["score"])
-
             else:
                 if sim_score["score"] < best["score"]:
                     best = sim_score
-                    beta = min(beta, best["score"])
-
-            # Alpha Beta Pruning
-            if beta <= alpha:
-                break
 
         return best
 
@@ -153,7 +134,6 @@ class Student3Agent(Agent):
                 min_count += 1
 
         count = max_count - min_count
-
         return count
 
     def check_endgame(self, board_size, chess_board, my_pos, adv_pos):
@@ -230,6 +210,7 @@ class Student3Agent(Agent):
         barrier_dir : int
             The direction of the barrier.
         """
+        
         # Endpoint already has barrier or is boarder
         r, c = end_pos
         if chess_board[r, c, barrier_dir]:

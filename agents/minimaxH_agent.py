@@ -7,16 +7,16 @@ from agents.agent import Agent
 from store import register_agent
 
 
-@register_agent("student2_agent")
-class Student2Agent(Agent):
+@register_agent("minimaxH_agent")
+class MinimaxHAgent(Agent):
     """
     A dummy class for your implementation. Feel free to use this class to
     add any helper functionalities needed for your agent.
     """
 
     def __init__(self):
-        super(Student2Agent, self).__init__()
-        self.name = "StudentAgent2"
+        super(MinimaxHAgent, self).__init__()
+        self.name = "MinimaxHAgent"
 
         # Moves (Up, Right, Down, Left)
         self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
@@ -45,7 +45,7 @@ class Student2Agent(Agent):
         print("\n")
         board_size = len(chess_board)
 
-        move = self.minimax(True, my_pos, adv_pos, chess_board, board_size, 4)
+        move = self.minimax(True, my_pos, adv_pos, chess_board, board_size, 2)
 
         r, x, d = move["move"]
 
