@@ -1,22 +1,28 @@
-# Student agent: Add your own agent here
-# Minimax depth limit and heuristic
+# Reinforcement Learning Agent
+
+# System
 import sys
+
+# Deepcopy
 from copy import deepcopy
+
+# Numpy
 import numpy as np
+
+# Agent
 from agents.agent import Agent
+
+# Store
 from store import register_agent
 
 
-@register_agent("student2_agent")
-class Student2Agent(Agent):
-    """
-    A dummy class for your implementation. Feel free to use this class to
-    add any helper functionalities needed for your agent.
-    """
+@register_agent("rl_agent")
+class rl_agent(Agent):
 
+    # Initialization of agent
     def __init__(self):
-        super(Student2Agent, self).__init__()
-        self.name = "StudentAgent2"
+        super(rl_agent, self).__init__()
+        self.name = "rl_agent"
 
         # Moves (Up, Right, Down, Left)
         self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
@@ -24,7 +30,9 @@ class Student2Agent(Agent):
         # Opposite Directions
         self.opposites = {0: 2, 1: 3, 2: 0, 3: 1}
 
+    # Step function
     def step(self, chess_board, my_pos, adv_pos, max_step):
+
         """
         Implement the step function of your agent here.
         You can use the following variables to access the chess board:
@@ -45,7 +53,7 @@ class Student2Agent(Agent):
         print("\n")
         board_size = len(chess_board)
 
-        move = self.minimax(True, my_pos, adv_pos, chess_board, board_size, 4)
+        move = self.reinforcementLearning(True, my_pos, adv_pos, chess_board, board_size, 3, -100000, 100000)
 
         r, x, d = move["move"]
 
@@ -60,16 +68,28 @@ class Student2Agent(Agent):
             for j in range(board_size):
                 new_pos = i, j
                 x, y = new_pos
-                for k in range(4):
-                    if (self.check_valid_step(np.array([r, c]), np.array([x, y]), k, max_step, chess_board,
-                                              np.array([r2, c2]))):
-                        move_list.append((x, y, k))
+                if x + y <= max_step:
+                    for k in range(4):
+                        if (self.check_valid_step(np.array([r, c]), np.array([x, y]), k, max_step, chess_board,
+                                                  np.array([r2, c2]))):
+                            move_list.append((x, y, k))
 
         return move_list
 
-    def minimax(self, isMaximizing, my_pos, adv_pos, chess_board, board_size, depth):
+    def reinforcementLearning(self, isMaximizing, my_pos, adv_pos, chess_board, board_size, depth, alpha, beta):
         max_step = (board_size + 1) // 2
         move_list = self.valid_move(chess_board, my_pos, max_step, board_size, adv_pos)
+
+        row, col = my_pos
+        row2, col2 = adv_pos
+
+        # distance between the two points
+        dis = np.sqrt(pow((row - row2), 2) + pow((col - col2), 2))
+
+        if dis > max_step:
+            # check which side are we on
+            if col < board_size // 2:
+                move_list.reverse()
 
         if depth == 0:
             move_listb = self.valid_move(chess_board, adv_pos, max_step, board_size, my_pos)
@@ -93,11 +113,11 @@ class Student2Agent(Agent):
             new_pos = (r, c)
             self.set_barrier(r, c, d, chess_board)
             if isMaximizing:
-                sim_score = self.minimax(False, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
-                                         board_size=board_size, depth=depth - 1)
+                sim_score = self.reinforcementLearning(False, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
+                                            board_size=board_size, depth=depth - 1, alpha=alpha, beta=beta)
             else:
-                sim_score = self.minimax(True, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
-                                         board_size=board_size, depth=depth - 1)
+                sim_score = self.reinforcementLearning(True, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
+                                            board_size=board_size, depth=depth - 1, alpha=alpha, beta=beta)
 
             # undo
             self.undo_barrier(r, c, d, chess_board)
@@ -110,9 +130,16 @@ class Student2Agent(Agent):
             if isMaximizing:
                 if sim_score["score"] > best["score"]:
                     best = sim_score
+                    alpha = max(alpha, best["score"])
+
             else:
                 if sim_score["score"] < best["score"]:
                     best = sim_score
+                    beta = min(beta, best["score"])
+
+            # Alpha Beta Pruning
+            if beta <= alpha:
+                break
 
         return best
 
@@ -134,6 +161,7 @@ class Student2Agent(Agent):
                 min_count += 1
 
         count = max_count - min_count
+
         return count
 
     def check_endgame(self, board_size, chess_board, my_pos, adv_pos):
@@ -210,7 +238,6 @@ class Student2Agent(Agent):
         barrier_dir : int
             The direction of the barrier.
         """
-        
         # Endpoint already has barrier or is boarder
         r, c = end_pos
         if chess_board[r, c, barrier_dir]:

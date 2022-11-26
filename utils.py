@@ -1,26 +1,25 @@
+# Context Library
 from contextlib import contextmanager
+
+# Logging
 import logging
 
-
+# Context Manager
 @contextmanager
-def all_logging_disabled(highest_level=logging.CRITICAL):
-    """
-    A context manager that will prevent any logging messages
-    triggered during the body from being processed.
-    :param highest_level: the maximum logging level in use.
-      This would only need to be changed if a custom level greater than CRITICAL
-      is defined.
-    """
-    # two kind-of hacks here:
-    #    * can't get the highest logging level in effect => delegate to the user
-    #    * can't get the current module-level override => use an undocumented
-    #       (but non-private!) interface
 
+# Disable all logging
+def all_logging_disabled(highest_level=logging.CRITICAL):
+
+    # Previous level
     previous_level = logging.root.manager.disable
 
+    # Disable logging of the highest level
     logging.disable(highest_level)
 
+    # Continue
     try:
         yield
+
+    # Execute regardless
     finally:
         logging.disable(previous_level)
