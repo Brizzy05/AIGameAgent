@@ -3,9 +3,39 @@
 import sys
 from copy import deepcopy
 import numpy as np
+from collections import defaultdict
 from agents.agent import Agent
 from store import register_agent
+from random import Random as Random
 
+
+class MCTSNode:
+    CurrMaxScore = None
+    CurrMove = None
+    
+    def __init__(self, state, my_pos, adv_pos, move=None):
+        self.parent = None
+        self.totalScore = 0
+        self.numVisit = 0
+        self.my_pos = my_pos
+        self.adv_pos = adv_pos
+        self.move = move
+        self.state = state # chess_board
+        self.children = []
+        
+    
+    def isTerminal(self):
+        return len(self.children) == 0
+    
+    def isNewSim(self):
+        return self.numVisit == 0
+    
+    def getWinRatio(self):
+        return self.totalScore / self.numVisit
+    
+    def addChild(self, node):
+        self.children.append(node)
+    
 
 @register_agent("mcts_agent")
 class MCTSAgent(Agent):
@@ -45,7 +75,7 @@ class MCTSAgent(Agent):
         print("\n")
         board_size = len(chess_board)
 
-        move = self.minimax(True, my_pos, adv_pos, chess_board, board_size, 4)
+        move = None
 
         r, x, d = move["move"]
 
@@ -67,57 +97,53 @@ class MCTSAgent(Agent):
 
         return move_list
 
-    def minimax(self, isMaximizing, my_pos, adv_pos, chess_board, board_size, depth):
-        max_step = (board_size + 1) // 2
-        move_list = self.valid_move(chess_board, my_pos, max_step, board_size, adv_pos)
-
-        if depth == 0:
-            move_listb = self.valid_move(chess_board, adv_pos, max_step, board_size, my_pos)
-            count = self.count_path(chess_board, move_list, move_listb, my_pos, adv_pos)
-            return {"move": None, "score": count}
-
-        # check if endgame
-        end_game, p0_score, p1_score = self.check_endgame(board_size, chess_board, my_pos, adv_pos)
-
-        if end_game:
-            return {"move": None, "score": p0_score - p1_score if isMaximizing else p1_score - p0_score}
-
-        # if we are the maximizing player
-        if isMaximizing:
-            best = {"move": None, "score": -100000}
+    def mcts(self, chess_board, my_pos, adv_pos, max_step, board_size):
+        parentNode = MCTSNode(chess_board, my_pos, adv_pos)
+        
+        validMove = self.valid_move(chess_board, my_pos, max_step, board_size, adv_pos)
+        
+        for move in validMove:
+            tmpNode = MCTSNode(chess_board, my_pos, adv_pos, move)
+            parentNode.children.append(tmpNode)
+        
+        selectNode = parentNode.children[np.random.randint(0, len(parentNode.children))]
+        
+        if selectNode.numVisit == 0:
+           score = self.simulation(selectNode, parentNode, chess_board, my_pos, adv_pos)
         else:
-            best = {"move": None, "score": 100000}
+            # check if have any other nodes to simulate before expanding
+            
+            
+        
+        
+        
+        
+        pass
+    
+    def selection():
+        pass
+    
+    def simulation(self, topParent, chess_board, my_pos, adv_pos):
+        pass
+    
+    def checkNumVisit(self, Pnode):
+        
+        for nodes in Pnode.children:
+            if nodes.numVisit == 0:
+                return True
 
-        for mv in move_list:
-            r, c, d = mv
-            new_pos = (r, c)
-            self.set_barrier(r, c, d, chess_board)
-            if isMaximizing:
-                sim_score = self.minimax(False, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
-                                         board_size=board_size, depth=depth - 1)
-            else:
-                sim_score = self.minimax(True, my_pos=adv_pos, adv_pos=new_pos, chess_board=chess_board,
-                                         board_size=board_size, depth=depth - 1)
-
-            # undo
-            self.undo_barrier(r, c, d, chess_board)
-
-            # possible optimal move
-
-            sim_score["move"] = mv
-            # print("after", sim_score)
-
-            if isMaximizing:
-                if sim_score["score"] > best["score"]:
-                    best = sim_score
-            else:
-                if sim_score["score"] < best["score"]:
-                    best = sim_score
-
-        return best
+        return False
+    
+    def expantion():
+        pass        
+    
+    
+    
+    
+        
 
     @staticmethod
-    def count_path(chess_board, move_lista, move_listb, my_pos, adv_pos):
+    def heuristic(chess_board, move_lista, move_listb, my_pos, adv_pos):
         # calculate the number of walls reachable by both players
 
         max_count = 0
@@ -256,3 +282,37 @@ class MCTSAgent(Agent):
         # Set the opposite barrier to True
         move = self.moves[dir]
         chess_board[r + move[0], c + move[1], self.opposites[dir]] = False
+
+class MonteCarloTreeSearchNode():
+    def __init__(self, state, parent=None, parent_action=None):
+
+        # [row[column]]
+        self.state = state
+
+        # None for root node, equal to node it is derived from
+        self.parent = parent
+
+        # None for root node, equal to action of parent node 
+        self.parent_action = parent_action
+
+        # All possible actions from current node
+        self.children = []
+
+        # number of times current node is visited
+        self._number_of_visits = 0
+
+        # 
+        self._results = defaultdict(int)
+        self._results[1] = 0
+        self._results[-1] = 0
+
+        # list of all possible actions
+        self._untried_actions = None
+        self._untried_actions = self.untried_actions()
+
+        return
+
+    
+    def untried_actions(self):
+        self._untried_actions = self.state.get_legal_actions()
+        return self._untried_actions
