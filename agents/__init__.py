@@ -6,3 +6,4 @@ from .minimaxH_agent import MinimaxHAgent
 from .alphabeta_agent import AlphaBetaAgent
 from .rl_agent import Rl_Agent
 from .student_agent import StudentAgent
+from .mcts_agent import MCTSAgent

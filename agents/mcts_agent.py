@@ -6,15 +6,16 @@ import numpy as np
 from collections import defaultdict
 from agents.agent import Agent
 from store import register_agent
-from random import Random as Random
+import random
 
 
 class MCTSNode:
     CurrMaxScore = None
     CurrMove = None
     
-    def __init__(self, state, my_pos, adv_pos, move=None):
-        self.parent = None
+    def __init__(self, state, my_pos, adv_pos, is_max, move=None, parent=None):
+        self.parent = parent
+        self.is_max = is_max
         self.totalScore = 0
         self.numVisit = 0
         self.my_pos = my_pos
@@ -35,6 +36,17 @@ class MCTSNode:
     
     def addChild(self, node):
         self.children.append(node)
+        
+    def backpropogate(self):
+        pass
+    
+    def selectChild(self):
+        leafNode = random.choice(self.children)
+        
+        while len(leafNode.children) > 0:
+            leafNode = random.choice(leafNode.children)
+           
+        return leafNode
     
 
 @register_agent("mcts_agent")
@@ -53,6 +65,8 @@ class MCTSAgent(Agent):
 
         # Opposite Directions
         self.opposites = {0: 2, 1: 3, 2: 0, 3: 1}
+        
+        self.root = None
 
     def step(self, chess_board, my_pos, adv_pos, max_step):
         """
@@ -74,10 +88,13 @@ class MCTSAgent(Agent):
         # bfs to find closest pos to adv
         print("\n")
         board_size = len(chess_board)
+        
+        self.root = MCTSNode(chess_board, my_pos, adv_pos, True)
 
-        move = None
-
-        r, x, d = move["move"]
+        move = self.mcts(chess_board, self.root, max_step, board_size, 200)
+        r, x, d = move
+        
+        print("Root Score: ", self.root.totalScore)
 
         return (r, x), d
 
@@ -97,49 +114,107 @@ class MCTSAgent(Agent):
 
         return move_list
 
-    def mcts(self, chess_board, my_pos, adv_pos, max_step, board_size):
-        parentNode = MCTSNode(chess_board, my_pos, adv_pos)
+    def mcts(self, chess_board, root, max_step, board_size, num_sim):
+        parentNode = root
+        validMove = self.valid_move(chess_board, parentNode.my_pos, max_step, board_size, parentNode.adv_pos)
+        self.expend(chess_board, parentNode, validMove, parentNode.adv_pos, parentNode.is_max)
         
-        validMove = self.valid_move(chess_board, my_pos, max_step, board_size, adv_pos)
-        
-        for move in validMove:
-            tmpNode = MCTSNode(chess_board, my_pos, adv_pos, move)
-            parentNode.children.append(tmpNode)
-        
-        selectNode = parentNode.children[np.random.randint(0, len(parentNode.children))]
-        
-        if selectNode.numVisit == 0:
-           score = self.simulation(selectNode, parentNode, chess_board, my_pos, adv_pos)
-        else:
-            # check if have any other nodes to simulate before expanding
+        for _ in range(num_sim):
+            
+            leaf = parentNode.selectChild()
             
             
-        
-        
-        
-        
-        pass
-    
-    def selection():
-        pass
-    
-    def simulation(self, topParent, chess_board, my_pos, adv_pos):
-        pass
-    
-    def checkNumVisit(self, Pnode):
-        
-        for nodes in Pnode.children:
-            if nodes.numVisit == 0:
-                return True
+            validMove = self.valid_move(chess_board, leaf.my_pos, max_step, board_size, leaf.adv_pos)
+            self.expend(chess_board, leaf, validMove, leaf.adv_pos, leaf.is_max)
+            
+            visit = leaf.selectChild() 
+                
+            results = self.simulation(visit, max_step, board_size)
 
-        return False
+            self.backProp(visit, results)
+            
+            parentNode = leaf
+            
+        mv = self.bestMove(root)
     
-    def expantion():
-        pass        
+        return mv
+           
     
+    def expend(self, chess_board, node, move, adv_pos, turn):
+        for mv in move:
+            x, y, d = mv 
+            newState = deepcopy(chess_board)
+            self.set_barrier(x, y, d, newState)
+            
+            end_game, p0_score, p1_score = self.check_endgame(len(chess_board), chess_board, (x, y), adv_pos)
+            
+            if turn:
+                tmpNode = MCTSNode(newState, adv_pos, (x,y), False, mv, node)
+                if end_game:
+                    tmpNode.totalScore = -100
+            else:
+                tmpNode = MCTSNode(newState, adv_pos, (x,y), True, mv, node)
+                if end_game:
+                    tmpNode.totalScore = 100
+            node.addChild(tmpNode)
     
+    def simulation(self, topParent, max_step, board_size):
+        chess_board = topParent.state 
+        
+        turn = topParent.is_max
+        my_pos = topParent.my_pos
+        adv_pos = topParent.adv_pos
+        
+        end_game, p0_score, p1_score = self.check_endgame(board_size, chess_board, my_pos, adv_pos)     
+
+        while not end_game:
+            validMove = self.valid_move(chess_board, my_pos, max_step, board_size, adv_pos)
+            selectmove = random.choice(validMove)
+            r, c, d = selectmove
+            
+            self.set_barrier(r, c, d, chess_board)
+            
+            my_pos = adv_pos
+            adv_pos = (r, c)
+            
+            if turn:
+                turn = False
+            else:
+                turn = True
+                
+            end_game, p0_score, p1_score = self.check_endgame(board_size, chess_board, my_pos, adv_pos)
+            
+        print("Endgame: ", end_game, "P0 Score: ", p0_score, "P1 Score: ", p1_score, "Turn: ", turn)
+        if turn:
+            return p0_score - p1_score
+        else:
+            return p1_score - p0_score
+           
+                
     
+    def backProp(self, selectedNode, score):
+        
+        tmp = selectedNode
+        
+        tmp.totalScore += score
+        
+        while tmp.parent != None:
+            tmp = tmp.parent
+            tmp.totalScore += score
+            
     
+    def bestMove(self, root):
+        max = -1000000
+        node = None 
+        
+        for child in root.children:
+            if child.totalScore > max:
+                max = child.totalScore
+                node = child 
+        
+        print("TotalScore: ", node.totalScore, " Move: ", node.move)
+
+        return node.move
         
 
     @staticmethod
@@ -283,36 +358,7 @@ class MCTSAgent(Agent):
         move = self.moves[dir]
         chess_board[r + move[0], c + move[1], self.opposites[dir]] = False
 
-class MonteCarloTreeSearchNode():
-    def __init__(self, state, parent=None, parent_action=None):
-
-        # [row[column]]
-        self.state = state
-
-        # None for root node, equal to node it is derived from
-        self.parent = parent
-
-        # None for root node, equal to action of parent node 
-        self.parent_action = parent_action
-
-        # All possible actions from current node
-        self.children = []
-
-        # number of times current node is visited
-        self._number_of_visits = 0
-
-        # 
-        self._results = defaultdict(int)
-        self._results[1] = 0
-        self._results[-1] = 0
-
-        # list of all possible actions
-        self._untried_actions = None
-        self._untried_actions = self.untried_actions()
-
-        return
 
     
-    def untried_actions(self):
-        self._untried_actions = self.state.get_legal_actions()
-        return self._untried_actions
+    
+    

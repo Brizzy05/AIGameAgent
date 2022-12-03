@@ -256,3 +256,6 @@ class MinimaxHAgent(Agent):
         # Set the opposite barrier to True
         move = self.moves[dir]
         chess_board[r + move[0], c + move[1], self.opposites[dir]] = False
+        
+
+    
