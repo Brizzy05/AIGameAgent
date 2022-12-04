@@ -45,7 +45,7 @@ class AlphaBetaAgent(Agent):
         print("\n")
         board_size = len(chess_board)
 
-        move = self.alpha_beta(True, my_pos, adv_pos, chess_board, board_size, 3, -100000, 100000)
+        move = self.alpha_beta(True, my_pos, adv_pos, chess_board, board_size, 2, -100000, 100000, 0)
 
         r, x, d = move["move"]
 
@@ -66,7 +66,7 @@ class AlphaBetaAgent(Agent):
                                               np.array([r2, c2]))):
                         move_list.append((x, y, k))
 
-        return move_list
+        return self.selectMove(chess_board, move_list, adv_pos)
 
     def alpha_beta(self, isMaximizing, my_pos, adv_pos, chess_board, board_size, depth, alpha, beta, direction):
         max_step = (board_size + 1) // 2
@@ -78,11 +78,11 @@ class AlphaBetaAgent(Agent):
         #print(len(move_list))
         #print("History", "My_pos", my_pos, "direction", direction, "Opponent", adv_pos, "Turn", isMaximizing, alpha, beta)
         # distance between two points
-        dis = 3 / ((np.sqrt(pow((row - row2), 2) + pow((col - col2), 2))))
-
-        if dis >= max_step:
-            if col > board_size // 2:
-                move_list.reverse()
+        # dis = 3 / ((np.sqrt(pow((row - row2), 2) + pow((col - col2), 2))))
+        #
+        # if dis >= max_step:
+        #     if col > board_size // 2:
+        #         move_list.reverse()
 
         if depth == 0:
             move_listb = self.valid_move(chess_board, adv_pos, max_step, board_size, my_pos)
@@ -103,6 +103,7 @@ class AlphaBetaAgent(Agent):
 
 
         for mv in move_list:
+
             r, c, d = mv
             new_pos = (r, c)
             self.set_barrier(r, c, d, chess_board)
@@ -137,6 +138,113 @@ class AlphaBetaAgent(Agent):
 
         #print("End Alpha beta", best, alpha, beta, isMaximizing)
         return best
+
+    def selectMove(self, chess_board, move, adv_pos):
+
+        if len(move) > 10:
+            maxMv = 10
+        else:
+            maxMv = len(move)
+
+        finalList = [(move[0], 0)] * maxMv
+
+        for i in range(maxMv):
+            for mv in move:
+                r, c, d = mv
+                h = self.mvFilter(chess_board, (r, c), adv_pos, d)
+                tmp, tmpH = finalList[i]
+                if h > tmpH:
+                    finalList[i] = ((r, c, d), h)
+
+        for i in range(len(finalList)):
+            mv, h = finalList[i]
+            finalList[i] = mv
+
+        return finalList
+
+
+
+
+    @staticmethod
+    def mvFilter(chess_board, my_pos, adv_pos, direction):
+        # calculate the number of walls reachable by both players
+
+        # add more value on direction score if horz or vert wall is needed more
+
+        min_count = 0
+
+        r1, c1 = my_pos
+        r2, c2 = adv_pos
+
+        # calculate the direction
+        horz = c2 - c1
+        vert = r1 - r2
+
+        dirScore = 0
+
+        if horz > 0:
+            if direction == 3:
+                dirScore -= 2
+            elif direction == 1:
+                dirScore += 1
+        else:
+            if direction == 3:
+                dirScore += 1
+            elif direction == 1:
+                dirScore -= 2
+
+        if vert > 0:
+            if direction == 2:
+                dirScore -= 2
+            elif direction == 1:
+                dirScore += 1
+
+        else:
+            if direction == 2:
+                dirScore += 1
+            elif direction == 0:
+                dirScore -= 2
+
+        trap_scoreM = 0
+        trap_scoreA = 0
+
+        for i in range(4):
+            if chess_board[r1, c1, i]:
+                trap_scoreM -= 6
+            if chess_board[r2, c2, i]:
+                trap_scoreM += 10
+
+        dis = len(chess_board) / AlphaBetaAgent.manhattan_distance(my_pos, adv_pos)
+
+        # count number of walls around adv and mypos
+        # checks if we are in a corner
+        for i in range(4):
+            if chess_board[r1, c1, i]:
+                min_count -= 8
+                if r1 % len(chess_board - 1) == 0 and c1 % len(chess_board - 1) == 0:
+                    min_count -= 15 * dis
+                elif r1 % len(chess_board - 1 == 0):
+                    min_count -= 8 * dis
+                elif c1 % len(chess_board - 1 == 0):
+                    min_count -= 8 * dis
+            if chess_board[r2, c2, i]:
+                min_count += 5
+
+        count = min_count + dis + dirScore + trap_scoreA + trap_scoreM
+
+        # print("heuristic", count)
+
+        return count
+
+    @staticmethod
+    def manhattan_distance(point1, point2):
+        distance = 0
+        for x1, x2 in zip(point1, point2):
+            difference = x2 - x1
+            absolute_difference = abs(difference)
+            distance += absolute_difference
+
+        return distance
 
     @staticmethod
     def heuristic(chess_board, move_lista, move_listb, my_pos, adv_pos, direction, isMax):
@@ -187,7 +295,7 @@ class AlphaBetaAgent(Agent):
             elif direction == 0:
                 dirScore -= 2
 
-        dis = 5 / (np.sqrt(pow((r1 - r2), 2) + pow((c1 - c2), 2)))
+        dis = 5 / AlphaBetaAgent.manhattan_distance(my_pos, adv_pos)
 
         # check how many walls surround enemy
         if isMax:

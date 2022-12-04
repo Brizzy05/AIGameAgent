@@ -25,6 +25,11 @@ class MCTSNode:
         self.state = state # chess_board
         self.children = []
         self.hScore = 0
+
+    def __str__(self):
+        return f"My_pos: {self.my_pos}, Adv_pos: {self.adv_pos}, Score: {self.totalScore}, Visit: {self.numVisit} " \
+               f"Move: {self.move}, IsMax: {self.is_max}"
+
         
     
     def isTerminal(self):
@@ -43,23 +48,17 @@ class MCTSNode:
         num = self.totalScore
         den = self.numVisit
         parentVisit = self.parent.numVisit
-        if parentVisit > 0:
+        if parentVisit > 0 and den > 0:
             top = math.log(parentVisit)
+            total = num/den + 2 * math.sqrt(top/den)
         else:
-            top = 10000
-            
-       
-            
-        if den == 0:
-            den = 1
-        
-        total = num/den + 2 * math.sqrt(top/den)
+            total = 10000
         
         return total
 
     def selectBestUcb(self):
         maxUcb = -math.inf
-        maxNode = None
+        maxNode = self
         for child in self.children:
             currentUcb = child.ucbScore()
             if currentUcb > maxUcb:
@@ -69,12 +68,16 @@ class MCTSNode:
         return maxNode
     
     def selectChild(self):
+        if self.isTerminal():
+            return self
+
         leafNode = self.selectBestUcb()
         
         while len(leafNode.children) > 0:
             leafNode = leafNode.selectBestUcb()
            
         return leafNode
+
     
 
 @register_agent("mcts_agent")
@@ -119,10 +122,32 @@ class MCTSAgent(Agent):
         
         self.root = MCTSNode(chess_board, my_pos, adv_pos, True)
 
-        move = self.mcts(chess_board, self.root, max_step, board_size, 200)
+        move = self.mcts(chess_board, self.root, max_step, board_size, 70)
         r, x, d = move
+
+        print("Root Score: ", self.root.totalScore, "Visit", self.root.numVisit, "Move", self.root.move)
         
-        print("Root Score: ", self.root.totalScore/self.root.numVisit)
+        queue = [self.root]
+        
+        # parent = None
+        # while len(queue) != 0:
+        #     node = queue.pop(0)
+        #
+        #     # if parent == node.parent:
+        #     #     print("Root Score: ", node.totalScore, "Visit", node.numVisit, "Move", node.move)
+        #     # else:
+        #     #     print("\n")
+        #     #     print("Root Score: ", node.totalScore, "Visit", node.numVisit, "Move", node.move)
+        #     #     parent = node
+        #
+        #     for child in node.children:
+        #         queue.append(child)
+
+        for child in self.root.children:
+            print(child)
+            
+            
+        
 
         return (r, x), d
 
@@ -144,24 +169,26 @@ class MCTSAgent(Agent):
 
     def mcts(self, chess_board, root, max_step, board_size, num_sim):
         parentNode = root
+        
         validMove = self.valid_move(chess_board, parentNode.my_pos, max_step, board_size, parentNode.adv_pos)
         self.expend(chess_board, parentNode, validMove, parentNode.adv_pos, parentNode.is_max)
+        
         
         for _ in range(num_sim):
             
             leaf = parentNode.selectChild()
             
-            
-            validMove = self.valid_move(chess_board, leaf.my_pos, max_step, board_size, leaf.adv_pos)
-            self.expend(chess_board, leaf, validMove, leaf.adv_pos, leaf.is_max)
-            
-            visit = leaf.selectChild() 
+            if leaf.numVisit > 0:
+                validMove = self.valid_move(chess_board, leaf.my_pos, max_step, board_size, leaf.adv_pos)
+                self.expend(chess_board, leaf, validMove, leaf.adv_pos, leaf.is_max)
+                
+                visit = leaf.selectChild() 
+            else:
+                visit = leaf
                 
             results = self.simulation(visit, max_step, board_size)
 
             self.backProp(visit, results)
-            
-            parentNode = leaf
             
         mv = self.bestMove(root)
     
@@ -169,19 +196,21 @@ class MCTSAgent(Agent):
            
     
     def expend(self, chess_board, node, move, adv_pos, turn):
+        board_size = len(chess_board)
         for mv in move:
             x, y, d = mv 
             newState = deepcopy(chess_board)
             self.set_barrier(x, y, d, newState)
-            
-            
+
+            end_game, p0_score, p1_score = self.check_endgame(board_size, chess_board, (x, y), adv_pos)
+
             if turn:
-                tmpNode = MCTSNode(newState, adv_pos, (x,y), False, mv, node)
-                
+                tmpNode = MCTSNode(newState, adv_pos, (x, y), False, mv, node)
             else:
-                tmpNode = MCTSNode(newState, adv_pos, (x,y), True, mv, node)
-                
-            node.addChild(tmpNode)
+                tmpNode = MCTSNode(newState, adv_pos, (x, y), True, mv, node)
+
+            if not end_game:
+                node.addChild(tmpNode)
     
     def simulation(self, topParent, max_step, board_size):
         chess_board = deepcopy(topParent.state) 
@@ -192,6 +221,11 @@ class MCTSAgent(Agent):
         end_game, p0_score, p1_score = self.check_endgame(board_size, chess_board, my_pos, adv_pos)     
 
         while not end_game:
+            if turn:
+                turn = False
+            else:
+                turn = True
+
             validMove = self.valid_move(chess_board, my_pos, max_step, board_size, adv_pos)
             
             selectMv = self.selectBstHeuristic(chess_board, adv_pos, turn, validMove)
@@ -200,37 +234,47 @@ class MCTSAgent(Agent):
             
             my_pos = adv_pos
             adv_pos = (r, c)
-            
-            if turn:
-                turn = False
-            else:
-                turn = True
-                
+
             end_game, p0_score, p1_score = self.check_endgame(board_size, chess_board, my_pos, adv_pos)
-            
+
+                
+
         #print("Endgame: ", end_game, "P0 Score: ", p0_score, "P1 Score: ", p1_score, "Turn: ", turn)
         if turn:
             if p0_score > p1_score:
                 return 1
-            return 0
+            else:
+                return 0
         else:
-            if p1_score > p0_score:
+            if p0_score < p1_score:
                 return 1
-            return 0
+            else:
+                return 0
            
                    
     
     def backProp(self, selectedNode, score):
         
         tmp = selectedNode
+        turn = selectedNode.is_max
+        tracker = 0
+
+        if not turn:
+            if score == 0:
+                score = 1
+                tracker = 1
+        else:
+            if score == 0:
+                score = 1
+            else:
+                tracker = 1
         
-        tmp.totalScore += score
-        tmp.numVisit += 1
-        
-        while tmp.parent != None:
-            tmp = tmp.parent
+        while tmp != None:
             tmp.numVisit += 1
-            tmp.totalScore += score
+            if tracker % 2 == 0:
+                tmp.totalScore += score
+            tracker += 1
+            tmp = tmp.parent
             
     
     def bestMove(self, root):
@@ -239,24 +283,33 @@ class MCTSAgent(Agent):
         
         for child in root.children:
             if child.numVisit > 0:
-                ratio = child.totalScore / child.numVisit 
+                ratio = child.ucbScore()
                 if ratio > maxI:
                     maxI = ratio
-                    node = child 
+                    node = child
+                elif ratio == maxI:
+                    r, c, d = node.move
+                    Hnode = self.heuristic(node.state, node.adv_pos, node.my_pos, d)
+                    r, c, d = child.move
+                    Hchild = self.heuristic(child.state, child.adv_pos, child.my_pos, d)
+
+                    if Hchild > Hnode:
+                        node = child
+
         
-        print("TotalScore: ", ratio, " Move: ", node.move)
+        print("TotalScore: ", ratio, " Move: ", node.move, "Num visit", node.numVisit,"total score: " ,node.totalScore)
 
         return node.move
     
     
-    def selectBstHeuristic(self, chess_board, adv_pos, isMax, moveList):
+    def selectBstHeuristic(self, chess_board, adv_pos, isMax, moveList): 
         x, y, d = moveList[0]
-        finalH = self.heuristic(chess_board, (x, y), adv_pos, isMax, d)
+        finalH = self.heuristic(chess_board, (x, y), adv_pos, d)
         finalMv = moveList[0]
         
         for mv in moveList:
             x, y, d = mv
-            tmpH = self.heuristic(chess_board, (x, y), adv_pos, isMax, d)
+            tmpH = self.heuristic(chess_board, (x, y), adv_pos, d)
             if tmpH > finalH:
                 finalH = tmpH
                 finalMv = mv
@@ -264,7 +317,7 @@ class MCTSAgent(Agent):
         return finalMv
 
     @staticmethod
-    def heuristic(chess_board, my_pos, adv_pos, isMax, direction):
+    def heuristic(chess_board, my_pos, adv_pos, direction):
         # calculate the number of walls reachable by both players
 
         #add more value on direction score if horz or vert wall is needed more
@@ -305,7 +358,16 @@ class MCTSAgent(Agent):
             elif direction == 0:
                 dirScore -= 2
 
-        dis = 5 / (np.sqrt(pow((r1 - r2), 2) + pow((c1 - c2), 2)))
+        trap_scoreM = 0
+        trap_scoreA = 0
+
+        for i in range(4):
+            if chess_board[r1, c1, i]:
+                trap_scoreM -= 6
+            if chess_board[r2, c2, i]:
+                trap_scoreM += 10
+
+        dis = 5 / (np.sqrt(pow((r1 - r2), 2) + pow((c1 - c2), 2))) + trap_scoreM + trap_scoreA
 
 
         # count number of walls around adv and mypos
