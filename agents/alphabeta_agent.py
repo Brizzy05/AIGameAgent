@@ -45,7 +45,7 @@ class AlphaBetaAgent(Agent):
         print("\n")
         board_size = len(chess_board)
 
-        move = self.alpha_beta(True, my_pos, adv_pos, chess_board, board_size, 2, -100000, 100000, 0)
+        move = self.alpha_beta(True, my_pos, adv_pos, chess_board, board_size, 3, -100000, 100000, 0)
 
         r, x, d = move["move"]
 
@@ -165,8 +165,8 @@ class AlphaBetaAgent(Agent):
 
 
 
-    @staticmethod
-    def mvFilter(chess_board, my_pos, adv_pos, direction):
+
+    def mvFilter(self, chess_board, my_pos, adv_pos, direction):
         # calculate the number of walls reachable by both players
 
         # add more value on direction score if horz or vert wall is needed more
@@ -230,7 +230,14 @@ class AlphaBetaAgent(Agent):
             if chess_board[r2, c2, i]:
                 min_count += 5
 
-        count = min_count + dis + dirScore + trap_scoreA + trap_scoreM
+        new_state = deepcopy(chess_board)
+
+        end_game, p0, p1 = self.check_endgame(len(chess_board), new_state, my_pos, adv_pos)
+
+        count = min_count + dis + dirScore
+
+        # if end_game:
+        #     count += (p0 - p1) * 100
 
         # print("heuristic", count)
 
@@ -295,7 +302,7 @@ class AlphaBetaAgent(Agent):
             elif direction == 0:
                 dirScore -= 2
 
-        dis = 5 / AlphaBetaAgent.manhattan_distance(my_pos, adv_pos)
+        dis = len(chess_board) / AlphaBetaAgent.manhattan_distance(my_pos, adv_pos)
 
         # check how many walls surround enemy
         if isMax:

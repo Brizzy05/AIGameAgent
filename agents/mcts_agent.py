@@ -14,7 +14,7 @@ class MCTSNode:
     CurrMaxScore = None
     CurrMove = None
     
-    def __init__(self, state, my_pos, adv_pos, is_max, move=None, parent=None):
+    def __init__(self, state, my_pos, adv_pos, is_max, move=None, parent=None, heurist_score=0):
         self.parent = parent
         self.is_max = is_max
         self.totalScore = 0
@@ -24,11 +24,15 @@ class MCTSNode:
         self.move = move
         self.state = state # chess_board
         self.children = []
-        self.hScore = 0
+        self.end_game = False
+        self.heuristic_score = heurist_score
 
     def __str__(self):
         return f"My_pos: {self.my_pos}, Adv_pos: {self.adv_pos}, Score: {self.totalScore}, Visit: {self.numVisit} " \
                f"Move: {self.move}, IsMax: {self.is_max}"
+
+    def __gt__(self, other):
+        return self.heuristic_score > other.heuristic_score
 
         
     
@@ -71,9 +75,11 @@ class MCTSNode:
         if self.isTerminal():
             return self
 
+        self.children.sort()
         leafNode = self.selectBestUcb()
         
         while len(leafNode.children) > 0:
+            leafNode.children.sort()
             leafNode = leafNode.selectBestUcb()
            
         return leafNode
@@ -120,9 +126,9 @@ class MCTSAgent(Agent):
         print("\n")
         board_size = len(chess_board)
         
-        self.root = MCTSNode(chess_board, my_pos, adv_pos, True)
+        self.root = MCTSNode(chess_board, my_pos, adv_pos, False)
 
-        move = self.mcts(chess_board, self.root, max_step, board_size, 70)
+        move = self.mcts(chess_board, self.root, max_step, board_size, 500)
         r, x, d = move
 
         print("Root Score: ", self.root.totalScore, "Visit", self.root.numVisit, "Move", self.root.move)
@@ -196,21 +202,22 @@ class MCTSAgent(Agent):
            
     
     def expend(self, chess_board, node, move, adv_pos, turn):
-        board_size = len(chess_board)
         for mv in move:
             x, y, d = mv 
             newState = deepcopy(chess_board)
             self.set_barrier(x, y, d, newState)
 
-            end_game, p0_score, p1_score = self.check_endgame(board_size, chess_board, (x, y), adv_pos)
+            heur = self.heuristic(chess_board, (x, y), adv_pos, d)
 
             if turn:
-                tmpNode = MCTSNode(newState, adv_pos, (x, y), False, mv, node)
+                tmpNode = MCTSNode(newState, adv_pos, (x, y), False, mv, node, heur)
             else:
-                tmpNode = MCTSNode(newState, adv_pos, (x, y), True, mv, node)
+                tmpNode = MCTSNode(newState, adv_pos, (x, y), True, mv, node, heur)
 
-            if not end_game:
+            if not node.end_game:
                 node.addChild(tmpNode)
+            else:
+                break
     
     def simulation(self, topParent, max_step, board_size):
         chess_board = deepcopy(topParent.state) 
@@ -218,7 +225,10 @@ class MCTSAgent(Agent):
         my_pos = topParent.my_pos
         adv_pos = topParent.adv_pos
         
-        end_game, p0_score, p1_score = self.check_endgame(board_size, chess_board, my_pos, adv_pos)     
+        end_game, p0_score, p1_score = self.check_endgame(board_size, chess_board, my_pos, adv_pos)
+
+        if end_game:
+            topParent.end_game = True
 
         while not end_game:
             if turn:
@@ -240,7 +250,7 @@ class MCTSAgent(Agent):
                 
 
         #print("Endgame: ", end_game, "P0 Score: ", p0_score, "P1 Score: ", p1_score, "Turn: ", turn)
-        if turn:
+        if not turn:
             if p0_score > p1_score:
                 return 1
             else:
@@ -259,7 +269,7 @@ class MCTSAgent(Agent):
         turn = selectedNode.is_max
         tracker = 0
 
-        if not turn:
+        if turn:
             if score == 0:
                 score = 1
                 tracker = 1
@@ -283,21 +293,21 @@ class MCTSAgent(Agent):
         
         for child in root.children:
             if child.numVisit > 0:
-                ratio = child.ucbScore()
+                ratio = child.totalScore / child.numVisit
                 if ratio > maxI:
                     maxI = ratio
                     node = child
-                elif ratio == maxI:
-                    r, c, d = node.move
-                    Hnode = self.heuristic(node.state, node.adv_pos, node.my_pos, d)
-                    r, c, d = child.move
-                    Hchild = self.heuristic(child.state, child.adv_pos, child.my_pos, d)
-
-                    if Hchild > Hnode:
-                        node = child
+                # elif ratio == maxI:
+                #     r, c, d = node.move
+                #     Hnode = self.heuristic(node.state, node.adv_pos, node.my_pos, d)
+                #     r, c, d = child.move
+                #     Hchild = self.heuristic(child.state, child.adv_pos, child.my_pos, d)
+                #
+                #     if Hchild > Hnode:
+                #         node = child
 
         
-        print("TotalScore: ", ratio, " Move: ", node.move, "Num visit", node.numVisit,"total score: " ,node.totalScore)
+        print("TotalScore: ", maxI, " Move: ", node.move, "Num visit", node.numVisit,"total score: " ,node.totalScore)
 
         return node.move
     
@@ -316,8 +326,8 @@ class MCTSAgent(Agent):
         
         return finalMv
 
-    @staticmethod
-    def heuristic(chess_board, my_pos, adv_pos, direction):
+
+    def heuristic(self, chess_board, my_pos, adv_pos, direction):
         # calculate the number of walls reachable by both players
 
         #add more value on direction score if horz or vert wall is needed more
@@ -327,6 +337,15 @@ class MCTSAgent(Agent):
         
         r1, c1 = my_pos
         r2, c2 = adv_pos
+
+        new_state = deepcopy(chess_board)
+
+        self.set_barrier(r1, c1, direction, chess_board)
+
+        end_game, p0, p1 = self.check_endgame(len(new_state), new_state, my_pos, adv_pos)
+
+        if end_game:
+            return p0 - p1
         
 
         # calculate the direction
@@ -367,7 +386,7 @@ class MCTSAgent(Agent):
             if chess_board[r2, c2, i]:
                 trap_scoreM += 10
 
-        dis = 5 / (np.sqrt(pow((r1 - r2), 2) + pow((c1 - c2), 2))) + trap_scoreM + trap_scoreA
+        dis = (5 / (np.sqrt(pow((r1 - r2), 2) + pow((c1 - c2), 2)))) + trap_scoreM + trap_scoreA
 
 
         # count number of walls around adv and mypos
