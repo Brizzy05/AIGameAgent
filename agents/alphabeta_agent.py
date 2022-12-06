@@ -147,14 +147,17 @@ class AlphaBetaAgent(Agent):
         else:
             maxMv = len(move)
 
-        finalList = [(move[0], 0)] * maxMv
+        if len(move) > 0:
+            finalList = [(move[0], 0)] * maxMv
+        else:
+            finalList = []
 
         for i in range(maxMv):
             for mv in move:
                 r, c, d = mv
                 h = self.mvFilter(chess_board, (r, c), adv_pos, d)
                 tmp, tmpH = finalList[i]
-                if h > tmpH:
+                if h < tmpH:
                     finalList[i] = ((r, c, d), h)
 
         for i in range(len(finalList)):

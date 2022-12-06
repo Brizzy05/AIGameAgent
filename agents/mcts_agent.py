@@ -69,6 +69,7 @@ class MCTSNode:
         elif len(self.children) > 75:
             divider = 2
 
+
         for i in range(len(self.children) // divider):
             child = self.children[i]
             currentUcb = child.ucbScore()
@@ -103,7 +104,7 @@ class MCTSAgent(Agent):
     def __init__(self):
         super(MCTSAgent, self).__init__()
         self.name = "MCTSAgent"
-
+        self.autoplay = True
         # Moves (Up, Right, Down, Left)
         self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
 
@@ -156,8 +157,8 @@ class MCTSAgent(Agent):
         #     for child in node.children:
         #         queue.append(child)
 
-        for child in self.root.children:
-            print(child)
+        # for child in self.root.children:
+        #     print(child)
             
             
         
