@@ -45,7 +45,7 @@ class MinimaxHAgent(Agent):
         print("\n")
         board_size = len(chess_board)
 
-        move = self.minimax(True, my_pos, adv_pos, chess_board, board_size, 2)
+        move = self.minimax(True, my_pos, adv_pos, chess_board, board_size, 5, 0)
 
         r, x, d = move["move"]
 
