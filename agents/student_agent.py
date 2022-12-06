@@ -125,7 +125,14 @@ class MCTSNode:
         maxUcb = -math.inf
         maxNode = self
 
-        for child in self.children:
+        divider = 1
+        if len(self.children) > 130:
+            divider = 3
+        elif len(self.children) > 75:
+            divider = 2
+
+        for i in range(len(self.children) // divider):
+            child = self.children[i]
             currentUcb = child.ucbScore()
             # Updates node with highest UCB
             if currentUcb > maxUcb:
@@ -187,7 +194,7 @@ class StudentAgent(Agent):
         """
         # dummy return
 
-        # print("\n")
+        print("\n")
         board_size = len(chess_board)
 
         # initialize Tree nodes
@@ -216,8 +223,8 @@ class StudentAgent(Agent):
         #     for child in node.children:
         #         queue.append(child)
 
-        # for child in self.root.children:
-        #    print(child)
+        for child in self.root.children:
+           print(child)
 
         return (r, x), d
 
@@ -269,7 +276,7 @@ class StudentAgent(Agent):
 
             self.backProp(visit, results)
 
-            print("The time is: ", start)
+            #print("The time is: ", start)
             start = time.time()
 
         mv = self.bestMove(root)
@@ -309,6 +316,16 @@ class StudentAgent(Agent):
         #if it is a endgame state
         if end_game:
             topParent.end_game = True
+            if not turn:
+                if p0_score > p1_score:
+                    return 5
+                else:
+                    return 0
+            else:
+                if p0_score < p1_score:
+                    return 5
+                else:
+                    return 0
 
         while not end_game:
             #reverse the turns

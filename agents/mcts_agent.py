@@ -63,7 +63,14 @@ class MCTSNode:
     def selectBestUcb(self):
         maxUcb = -math.inf
         maxNode = self
-        for child in self.children:
+        divider = 1
+        if len(self.children) > 130:
+            divider = 3
+        elif len(self.children) > 75:
+            divider = 2
+
+        for i in range(len(self.children) // divider):
+            child = self.children[i]
             currentUcb = child.ucbScore()
             if currentUcb > maxUcb:
                 maxUcb = currentUcb
@@ -128,7 +135,7 @@ class MCTSAgent(Agent):
         
         self.root = MCTSNode(chess_board, my_pos, adv_pos, False)
 
-        move = self.mcts(chess_board, self.root, max_step, board_size, 250)
+        move = self.mcts(chess_board, self.root, max_step, board_size, 70)
         r, x, d = move
 
         print("Root Score: ", self.root.totalScore, "Visit", self.root.numVisit, "Move", self.root.move)
@@ -207,7 +214,7 @@ class MCTSAgent(Agent):
             newState = deepcopy(chess_board)
             self.set_barrier(x, y, d, newState)
 
-            heur = self.heuristic(chess_board, (x, y), adv_pos, d)
+            heur = self.heuristic(newState, (x, y), adv_pos, d)
 
             if turn:
                 tmpNode = MCTSNode(newState, adv_pos, (x, y), False, mv, node, heur)
@@ -229,6 +236,16 @@ class MCTSAgent(Agent):
 
         if end_game:
             topParent.end_game = True
+            if not turn:
+                if p0_score > p1_score:
+                    return 5
+                else:
+                    return 0
+            else:
+                if p0_score < p1_score:
+                    return 5
+                else:
+                    return 0
 
         while not end_game:
             if turn:
@@ -345,7 +362,7 @@ class MCTSAgent(Agent):
         end_game, p0, p1 = self.check_endgame(len(new_state), new_state, my_pos, adv_pos)
 
         if end_game:
-            return p0 - p1
+            return (p0 - p1) * 100
         
 
         # calculate the direction
