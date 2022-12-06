@@ -198,11 +198,6 @@ class StudentAgent(Agent):
         print("\n")
         board_size = len(chess_board)
 
-        # initialize Tree nodes
-        self.root = MCTSNode(chess_board, my_pos, adv_pos, False)
-        move = self.mcts(chess_board, self.root, max_step, board_size, 50)
-        r, x, d = move
-
         global currentBoard, timeLimit
 
         if board_size == currentBoard:
@@ -210,6 +205,13 @@ class StudentAgent(Agent):
         else:
             timeLimit = 30
             currentBoard = board_size
+
+        # initialize Tree nodes
+        self.root = MCTSNode(chess_board, my_pos, adv_pos, False)
+        move = self.mcts(chess_board, self.root, max_step, board_size, 50)
+        r, x, d = move
+
+
 
         print("Board size: ", len(chess_board))
         print("Root Score: ", self.root.totalScore, "Visit", self.root.numVisit, "Move", self.root.move)
