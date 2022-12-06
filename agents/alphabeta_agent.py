@@ -17,6 +17,7 @@ class AlphaBetaAgent(Agent):
     def __init__(self):
         super(AlphaBetaAgent, self).__init__()
         self.name = "AlphaBetaAgent"
+        self.autoplay = True
 
         # Moves (Up, Right, Down, Left)
         self.moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
